@@ -1,0 +1,218 @@
+// Prisma Schema for Land Sales Dashboard
+// Database: Supabase PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== ENUMS ====================
+
+enum PostStatus {
+  DRAFT
+  PENDING_AI
+  READY
+  PUBLISHED
+  FAILED
+}
+
+enum AssetType {
+  IMG
+  VID
+}
+
+enum AssetSource {
+  MANUAL
+  AI
+}
+
+enum ProcessingStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum Platform {
+  FACEBOOK
+  INSTAGRAM
+  TIKTOK
+}
+
+enum SyncStatus {
+  PENDING
+  SYNCING
+  SYNCED
+  FAILED
+}
+
+enum QueueStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum GenerationType {
+  TEXT
+  IMAGE
+  VIDEO
+}
+
+enum GenerationStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// ==================== MODELS ====================
+
+model Post {
+  id               String     @id @default(uuid())
+  title            String
+  description      String?    @db.Text
+  projectDetails   Json       // { name, price, location, features[] }
+  status           PostStatus @default(DRAFT)
+
+  // AI Configuration
+  useAiImage       Boolean    @default(false)
+  useAiVideo       Boolean    @default(false)
+  useAiText        Boolean    @default(false)
+  aiPromptOverride String?    @db.Text
+
+  // Timestamps
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  deletedAt        DateTime?
+
+  // Relations
+  assets           Asset[]
+  platformSyncs    PlatformSync[]
+  publishingQueue  PublishingQueue?
+  aiGenerationLogs AiGenerationLog[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("posts")
+}
+
+model Asset {
+  id               String           @id @default(uuid())
+  postId           String
+  url              String
+  type             AssetType
+  source           AssetSource
+  order            Int              @default(0)
+
+  // Metadata
+  fileName         String?
+  fileSize         Int?             // bytes
+  mimeType         String?
+  width            Int?             // for images/videos
+  height           Int?             // for images/videos
+  duration         Int?             // seconds, for videos
+
+  // Processing
+  processingStatus ProcessingStatus @default(PENDING)
+  errorMessage     String?          @db.Text
+
+  // Timestamps
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  // Relations
+  post             Post             @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([type, source])
+  @@map("assets")
+}
+
+model PlatformSync {
+  id           String     @id @default(uuid())
+  postId       String
+  platform     Platform
+  externalId   String?    // Facebook post ID
+  syncStatus   SyncStatus @default(PENDING)
+
+  // Engagement Data (from Facebook)
+  likes        Int        @default(0)
+  comments     Int        @default(0)
+  shares       Int        @default(0)
+  views        Int        @default(0)
+
+  // Error Handling
+  syncError    String?    @db.Text
+  retryCount   Int        @default(0)
+  lastSyncedAt DateTime?
+
+  // Timestamps
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  // Relations
+  post         Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, platform])
+  @@index([platform, syncStatus])
+  @@map("platform_syncs")
+}
+
+model PublishingQueue {
+  id           String      @id @default(uuid())
+  postId       String      @unique
+  status       QueueStatus @default(PENDING)
+
+  // Scheduling
+  scheduledAt  DateTime    @default(now())
+  processedAt  DateTime?
+
+  // Error Handling
+  errorMessage String?     @db.Text
+  retryCount   Int         @default(0)
+  maxRetries   Int         @default(3)
+
+  // Timestamps
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  // Relations
+  post         Post        @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([status, scheduledAt])
+  @@map("publishing_queue")
+}
+
+model AiGenerationLog {
+  id             String           @id @default(uuid())
+  postId         String
+  generationType GenerationType
+  prompt         String?          @db.Text
+  resultUrl      String?
+
+  // Metrics
+  cost           Float?           // API cost in USD
+  duration       Int?             // Processing time in seconds
+  tokensUsed     Int?             // For text generation
+
+  // Status
+  status         GenerationStatus @default(PENDING)
+  errorMessage   String?          @db.Text
+
+  // Timestamps
+  createdAt      DateTime         @default(now())
+  completedAt    DateTime?
+
+  // Relations
+  post           Post             @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId, generationType])
+  @@index([status])
+  @@map("ai_generation_logs")
+}
