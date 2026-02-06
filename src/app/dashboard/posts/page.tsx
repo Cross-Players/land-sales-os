@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Table, Card, Button, Space, Input, Select, message } from "antd";
+import { Table, Card, Button, Space, Input, Select, App } from "antd";
 import { PlusOutlined, SearchOutlined, ReloadOutlined } from "@ant-design/icons";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ColumnsType } from "antd/es/table";
 import { usePosts, useDeletePost, usePublishPost } from "@/hooks/usePosts";
 import { PostStatusBadge } from "@/components/ui/PostStatusBadge";
-import { showDeleteConfirm, showPublishConfirm } from "@/components/ui/ConfirmModal";
+import { useConfirmModal } from "@/components/ui/ConfirmModal";
 import type { Post, PostStatus } from "@/types";
 
 const statusOptions = [
@@ -22,6 +22,8 @@ const statusOptions = [
 
 export default function PostsPage() {
   const router = useRouter();
+  const { message } = App.useApp();
+  const { showDeleteConfirm, showPublishConfirm } = useConfirmModal();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<PostStatus | "">("");

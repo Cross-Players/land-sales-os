@@ -12,11 +12,13 @@ import {
   Button,
   Space,
   Divider,
-  message,
+  App,
   Alert,
   Upload,
   Image,
   Radio,
+  Typography,
+  Tag,
 } from "antd";
 import type { UploadFile, UploadProps } from "antd";
 import {
@@ -24,15 +26,22 @@ import {
   SendOutlined,
   RobotOutlined,
   PlusOutlined,
-  InboxOutlined,
   PictureOutlined,
   VideoCameraOutlined,
+  DeleteOutlined,
+  DragOutlined,
+  CloudUploadOutlined,
+  FileImageOutlined,
+  FileOutlined,
+  CheckCircleOutlined,
+  ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import { useCreatePost } from "@/hooks/usePosts";
 import type { CreatePostRequest, ProjectDetails } from "@/types";
 
 const { TextArea } = Input;
 const { Dragger } = Upload;
+const { Text } = Typography;
 
 interface FormValues {
   title: string;
@@ -48,8 +57,130 @@ interface FormValues {
   mediaMode: "manual" | "ai" | "both";
 }
 
-export default function CreatePostPage() {
+interface FrameItem {
+  id: string;
+  type: "video" | "image";
+  file?: UploadFile;
+  caption: string;
+  voice: string;
+}
+
+// Professional Upload Card Component
+function UploadCard({
+  title,
+  icon,
+  accept,
+  maxSize,
+  maxCount,
+  fileList,
+  onChange,
+  onPreview,
+  listType = "picture-card",
+  children,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  accept: string;
+  maxSize: number;
+  maxCount?: number;
+  fileList: UploadFile[];
+  onChange: (fileList: UploadFile[]) => void;
+  onPreview?: (file: UploadFile) => void;
+  listType?: "picture-card" | "text" | "picture";
+  children?: React.ReactNode;
+}) {
+  const { message } = App.useApp();
+  const [isDragging, setIsDragging] = useState(false);
+
+  const beforeUpload = (file: File) => {
+    const isValidType = accept.includes("image")
+      ? file.type.startsWith("image/")
+      : file.type.startsWith("video/");
+    if (!isValidType) {
+      message.error(`Please upload a valid ${accept.includes("image") ? "image" : "video"} file`);
+      return Upload.LIST_IGNORE;
+    }
+    const isValidSize = file.size / 1024 / 1024 < maxSize;
+    if (!isValidSize) {
+      message.error(`${accept === "image/*" ? "Image" : "Video"} must be smaller than ${maxSize}MB`);
+      return Upload.LIST_IGNORE;
+    }
+    return false;
+  };
+
+  const formatFileSize = (bytes?: number) => {
+    if (!bytes) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+  };
+
+  const uploadProps: UploadProps = {
+    accept,
+    multiple: listType === "picture-card",
+    fileList,
+    beforeUpload,
+    onChange: ({ fileList }) => onChange(fileList),
+    onPreview,
+    listType,
+    maxCount,
+  };
+
+  return (
+    <Card
+      className={`border-2 transition-all duration-200 hover:shadow-md ${
+        isDragging
+          ? "border-blue-500 bg-blue-50"
+          : fileList.length > 0
+            ? "border-green-400"
+          : "border-dashed border-gray-300 hover:border-blue-400"
+      }`}
+      styles={{ body: { padding: "16px" } }}
+      onDragEnter={() => setIsDragging(true)}
+      onDragLeave={() => setIsDragging(false)}
+      onDrop={() => setIsDragging(false)}
+    >
+      <div className="mb-3">
+        <Space className="text-sm font-medium text-gray-700">
+          {icon}
+          <span>{title}</span>
+          <Tag color="blue">Max {formatFileSize(maxSize * 1024 * 1024)}</Tag>
+        </Space>
+      </div>
+      <Upload {...uploadProps}>
+        {children || (
+          <div className="py-6">
+            <p className="mb-2">
+              <CloudUploadOutlined className="text-3xl text-gray-400" />
+            </p>
+            <p className="text-sm text-gray-600">
+              Click or drag {accept.includes("image") ? "images" : "videos"} to upload
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              {fileList.length} / {maxCount || 8} file{maxCount !== 1 && "s"}
+            </p>
+          </div>
+        )}
+      </Upload>
+      {fileList.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-gray-200">
+          <Space size="small">
+            <CheckCircleOutlined className="text-green-500" />
+            <Text type="secondary" className="text-xs">
+              {fileList.length} file{fileList.length !== 1 ? "s" : ""} selected • Total:{" "}
+              {formatFileSize(fileList.reduce((acc, f) => acc + (f.size || 0), 0))}
+            </Text>
+          </Space>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function CreatePostContent() {
   const router = useRouter();
+  const { message } = App.useApp();
   const [form] = Form.useForm<FormValues>();
   const createMutation = useCreatePost();
 
@@ -57,15 +188,19 @@ export default function CreatePostPage() {
   const [useAiImage, setUseAiImage] = useState(false);
   const [useAiVideo, setUseAiVideo] = useState(false);
   const [mediaMode, setMediaMode] = useState<"manual" | "ai" | "both">("manual");
-  
+
   // File lists for uploads
   const [imageFiles, setImageFiles] = useState<UploadFile[]>([]);
   const [videoFiles, setVideoFiles] = useState<UploadFile[]>([]);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewImage, setPreviewImage] = useState("");
 
+  // Frames for AI video generation
+  const [frames, setFrames] = useState<FrameItem[]>([]);
+
   const hasAiFeatures = useAiText || useAiImage || useAiVideo;
   const hasManualMedia = imageFiles.length > 0 || videoFiles.length > 0;
+  const hasFrames = frames.length > 0;
 
   // Get base64 for preview
   const getBase64 = (file: File): Promise<string> =>
@@ -84,50 +219,87 @@ export default function CreatePostPage() {
     setPreviewOpen(true);
   };
 
-  // Image upload props
-  const imageUploadProps: UploadProps = {
-    name: "images",
-    multiple: true,
-    fileList: imageFiles,
-    beforeUpload: (file) => {
-      const isImage = file.type.startsWith("image/");
-      if (!isImage) {
-        message.error("You can only upload image files!");
-        return Upload.LIST_IGNORE;
-      }
-      const isLt10M = file.size / 1024 / 1024 < 10;
-      if (!isLt10M) {
-        message.error("Image must be smaller than 10MB!");
-        return Upload.LIST_IGNORE;
-      }
-      return false; // Prevent auto upload
-    },
-    onChange: ({ fileList }) => setImageFiles(fileList),
-    onPreview: handlePreview,
-    listType: "picture-card",
-    accept: "image/*",
+  // Frame management
+  const addFrame = (type: "video" | "image") => {
+    const newFrame: FrameItem = {
+      id: `frame-${Date.now()}-${Math.random()}`,
+      type,
+      caption: "",
+      voice: "default",
+    };
+    setFrames([...frames, newFrame]);
   };
 
-  // Video upload props
-  const videoUploadProps: UploadProps = {
-    name: "videos",
-    multiple: true,
-    fileList: videoFiles,
-    beforeUpload: (file) => {
-      const isVideo = file.type.startsWith("video/");
-      if (!isVideo) {
-        message.error("You can only upload video files!");
-        return Upload.LIST_IGNORE;
+  const removeFrame = (id: string) => {
+    setFrames(frames.filter((f) => f.id !== id));
+  };
+
+  const updateFrame = (id: string, updates: Partial<FrameItem>) => {
+    setFrames(frames.map((f) => (f.id === id ? { ...f, ...updates } : f)));
+  };
+
+  const handleFrameFileChange = (frameId: string, file: UploadFile | null) => {
+    if (file) {
+      updateFrame(frameId, { file });
+    }
+  };
+
+  // Upload files to the server
+  const uploadFiles = async (postId: string, files: UploadFile[], type: "image" | "video") => {
+    const filesToUpload = files.filter((f) => f.originFileObj);
+    if (filesToUpload.length === 0) return;
+
+    const formData = new FormData();
+    formData.append("postId", postId);
+    formData.append("type", type);
+
+    for (const file of filesToUpload) {
+      if (file.originFileObj) {
+        formData.append("files", file.originFileObj);
       }
-      const isLt50M = file.size / 1024 / 1024 < 50;
-      if (!isLt50M) {
-        message.error("Video must be smaller than 50MB!");
-        return Upload.LIST_IGNORE;
+    }
+
+    const response = await fetch("/api/upload", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || `Failed to upload ${type}s`);
+    }
+
+    return response.json();
+  };
+
+  // Upload frames as assets with metadata
+  const uploadFrames = async (postId: string) => {
+    const framesWithFiles = frames.filter((f) => f.file?.originFileObj);
+
+    for (let i = 0; i < framesWithFiles.length; i++) {
+      const frame = framesWithFiles[i];
+      if (!frame.file?.originFileObj) continue;
+
+      const formData = new FormData();
+      formData.append("postId", postId);
+      formData.append("type", frame.type === "video" ? "VID" : "IMG");
+      formData.append("files", frame.file.originFileObj);
+      formData.append("caption", frame.caption);
+      formData.append("voice", frame.voice);
+      formData.append("order", i.toString());
+
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(`Failed to upload frame ${i + 1}: ${error.error}`);
       }
-      return false; // Prevent auto upload
-    },
-    onChange: ({ fileList }) => setVideoFiles(fileList),
-    accept: "video/*",
+    }
+
+    return framesWithFiles.length;
   };
 
   const handleSubmit = async (values: FormValues, triggerAi: boolean) => {
@@ -139,38 +311,62 @@ export default function CreatePostPage() {
         features: values.features || [],
       };
 
-      // Determine AI flags based on media mode
       const shouldUseAiImage = triggerAi && (mediaMode === "ai" || mediaMode === "both") && values.useAiImage;
       const shouldUseAiVideo = triggerAi && (mediaMode === "ai" || mediaMode === "both") && values.useAiVideo;
+      const shouldUseAiText = triggerAi ? values.useAiText : false;
 
       const postData: CreatePostRequest = {
         title: values.title,
         description: values.description,
         projectDetails,
-        useAiText: triggerAi ? values.useAiText : false,
+        useAiText: shouldUseAiText,
         useAiImage: shouldUseAiImage,
         useAiVideo: shouldUseAiVideo,
         aiPromptOverride: values.aiPromptOverride,
       };
 
-      // TODO: Handle file uploads
-      // In a real implementation, you would:
-      // 1. Upload files to Supabase Storage
-      // 2. Get the URLs
-      // 3. Create assets in the database
-      
+      const post = await createMutation.mutateAsync(postData);
+
+      const uploadPromises: Promise<void>[] = [];
+
       if (hasManualMedia) {
-        console.log("Manual media files to upload:", {
-          images: imageFiles.map(f => f.name),
-          videos: videoFiles.map(f => f.name),
-        });
-        // For now, just log - file upload API needs to be implemented
+        if (imageFiles.length > 0) {
+          uploadPromises.push(
+            uploadFiles(post.id, imageFiles, "image").then(() => {
+              console.log(`Uploaded ${imageFiles.length} images for post ${post.id}`);
+            })
+          );
+        }
+
+        if (videoFiles.length > 0) {
+          uploadPromises.push(
+            uploadFiles(post.id, videoFiles, "video").then(() => {
+              console.log(`Uploaded ${videoFiles.length} videos for post ${post.id}`);
+            })
+          );
+        }
       }
 
-      const post = await createMutation.mutateAsync(postData);
+      if (hasFrames) {
+        uploadPromises.push(
+          uploadFrames(post.id).then((count) => {
+            console.log(`Uploaded ${count} frames for AI video generation`);
+          })
+        );
+      }
+
+      const results = await Promise.allSettled(uploadPromises);
+      const failedUploads = results.filter((r) => r.status === "rejected");
+
+      if (failedUploads.length > 0) {
+        console.error("Some uploads failed:", failedUploads);
+        message.warning("Post created but some files failed to upload");
+      }
 
       if (triggerAi && hasAiFeatures) {
         message.success("Post created! AI generation started...");
+      } else if (hasManualMedia || hasFrames) {
+        message.success("Post created with media");
       } else {
         message.success("Post saved as draft");
       }
@@ -181,9 +377,123 @@ export default function CreatePostPage() {
     }
   };
 
+  // Frame Upload Card Component
+  const FrameUploadCard = ({ frame, index }: { frame: FrameItem; index: number }) => {
+    const [isDragging, setIsDragging] = useState(false);
+
+    const uploadProps: UploadProps = {
+      accept: frame.type === "video" ? "video/*" : "image/*",
+      maxCount: 1,
+      fileList: frame.file ? [frame.file] : [],
+      beforeUpload: (file) => {
+        const isValidType = frame.type === "video"
+          ? file.type.startsWith("video/")
+          : file.type.startsWith("image/");
+        if (!isValidType) {
+          message.error(`Please upload a ${frame.type} file`);
+          return Upload.LIST_IGNORE;
+        }
+        const maxSize = frame.type === "video" ? 50 : 10;
+        const isValidSize = file.size / 1024 / 1024 < maxSize;
+        if (!isValidSize) {
+          message.error(`File must be smaller than ${maxSize}MB`);
+          return Upload.LIST_IGNORE;
+        }
+        handleFrameFileChange(frame.id, { ...file, status: "done" } as UploadFile);
+        return false;
+      },
+      onRemove: () => updateFrame(frame.id, { file: undefined }),
+      listType: frame.type === "image" ? "picture-card" : "text",
+    };
+
+    return (
+      <Card
+        size="small"
+        className={`mb-3 transition-all duration-200 ${
+          isDragging ? "border-blue-500 bg-blue-50" : "border-gray-200"
+        }`}
+        styles={{ body: { padding: "12px" } }}
+        onDragEnter={() => setIsDragging(true)}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={() => setIsDragging(false)}
+      >
+        <div className="flex items-start justify-between mb-2">
+          <Space>
+            <Tag
+              icon={frame.type === "video" ? <VideoCameraOutlined /> : <PictureOutlined />}
+              color={frame.type === "video" ? "purple" : "blue"}
+            >
+              Frame {index + 1}
+            </Tag>
+            {frame.file && (
+              <Tag icon={<CheckCircleOutlined />} color="success">
+                Uploaded
+              </Tag>
+            )}
+          </Space>
+          <Button
+            danger
+            size="small"
+            icon={<DeleteOutlined />}
+            onClick={() => removeFrame(frame.id)}
+          >
+            Remove
+          </Button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <div
+              className={`border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+                isDragging ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-blue-400"
+              }`}
+            >
+              <Upload {...uploadProps}>
+                {frame.file ? null : (
+                  <div>
+                    <CloudUploadOutlined className="text-2xl text-gray-400 mb-1" />
+                    <div className="text-xs text-gray-500">
+                      Click or drag to upload {frame.type}
+                    </div>
+                  </div>
+                )}
+              </Upload>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Caption</label>
+              <Input
+                placeholder="e.g., 'Luxury living room with city view'"
+                value={frame.caption}
+                onChange={(e) => updateFrame(frame.id, { caption: e.target.value })}
+                maxLength={200}
+                size="small"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Voice</label>
+              <Select
+                value={frame.voice}
+                onChange={(value) => updateFrame(frame.id, { voice: value })}
+                options={[
+                  { value: "default", label: "Default Voice" },
+                  { value: "male", label: "Male Voice" },
+                  { value: "female", label: "Female Voice" },
+                  { value: "energetic", label: "Energetic" },
+                  { value: "calm", label: "Calm & Professional" },
+                ]}
+                size="small"
+              />
+            </div>
+          </div>
+        </div>
+      </Card>
+    );
+  };
+
   return (
-    <div className="max-w-4xl mx-auto">
-      <Card title="Create New Post">
+    <div className="max-w-4xl mx-auto pb-8">
+      <Card title="Create New Post" className="shadow-sm">
         <Form
           form={form}
           layout="vertical"
@@ -196,7 +506,9 @@ export default function CreatePostPage() {
           }}
         >
           {/* Basic Info */}
-          <Divider orientation="left">Post Information</Divider>
+          <Divider orientation="left" className="text-base font-medium">
+            Post Information
+          </Divider>
 
           <Form.Item
             name="title"
@@ -216,7 +528,9 @@ export default function CreatePostPage() {
           </Form.Item>
 
           {/* Project Details */}
-          <Divider orientation="left">Project Details</Divider>
+          <Divider orientation="left" className="text-base font-medium">
+            Project Details
+          </Divider>
 
           <Form.Item
             name="projectName"
@@ -268,7 +582,7 @@ export default function CreatePostPage() {
           </Form.Item>
 
           {/* Media Section */}
-          <Divider orientation="left">
+          <Divider orientation="left" className="text-base font-medium">
             <Space>
               <PictureOutlined />
               Media Content
@@ -276,63 +590,98 @@ export default function CreatePostPage() {
           </Divider>
 
           <Form.Item name="mediaMode" label="Media Mode">
-            <Radio.Group 
+            <Radio.Group
               onChange={(e) => setMediaMode(e.target.value)}
               optionType="button"
               buttonStyle="solid"
+              className="w-full"
             >
-              <Radio.Button value="manual">Manual Upload Only</Radio.Button>
-              <Radio.Button value="ai">AI Generated Only</Radio.Button>
-              <Radio.Button value="both">Both (Upload + AI)</Radio.Button>
+              <Radio.Button value="manual" className="w-1/3 text-center">
+                Manual Upload
+              </Radio.Button>
+              <Radio.Button value="ai" className="w-1/3 text-center">
+                AI Generated
+              </Radio.Button>
+              <Radio.Button value="both" className="w-1/3 text-center">
+                Both
+              </Radio.Button>
             </Radio.Group>
           </Form.Item>
 
           {/* Manual Upload Section */}
           {(mediaMode === "manual" || mediaMode === "both") && (
-            <div className="mb-6">
+            <div className="space-y-4 mb-6">
               <Alert
                 message="Upload Media Files"
                 description={
-                  mediaMode === "both" 
+                  mediaMode === "both"
                     ? "Upload your images/videos. AI will also generate additional content."
                     : "Upload images and videos for your post."
                 }
                 type="info"
                 showIcon
-                className="mb-4"
               />
 
-              {/* Image Upload */}
-              <div className="mb-4">
-                <label className="block mb-2 font-medium">
-                  <PictureOutlined className="mr-2" />
-                  Images (max 10MB each)
-                </label>
-                <Upload {...imageUploadProps}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Image Upload */}
+                <UploadCard
+                  title="Images"
+                  icon={<FileImageOutlined />}
+                  accept="image/*"
+                  maxSize={10}
+                  maxCount={8}
+                  fileList={imageFiles}
+                  onChange={setImageFiles}
+                  onPreview={handlePreview}
+                  listType="picture-card"
+                >
                   {imageFiles.length >= 8 ? null : (
-                    <div>
-                      <PlusOutlined />
-                      <div className="mt-2">Upload</div>
-                    </div>
+                    <button
+                      type="button"
+                      className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 transition-colors"
+                    >
+                      <PlusOutlined className="text-2xl text-gray-400 mb-2" />
+                      <Text type="secondary">Upload Image</Text>
+                    </button>
                   )}
-                </Upload>
-              </div>
+                </UploadCard>
 
-              {/* Video Upload */}
-              <div>
-                <label className="block mb-2 font-medium">
-                  <VideoCameraOutlined className="mr-2" />
-                  Videos (max 50MB each)
-                </label>
-                <Dragger {...videoUploadProps} className="mb-4">
-                  <p className="ant-upload-drag-icon">
-                    <InboxOutlined />
-                  </p>
-                  <p className="ant-upload-text">Click or drag video files to upload</p>
-                  <p className="ant-upload-hint">
-                    Support MP4, MOV, AVI. Max 50MB per file.
-                  </p>
-                </Dragger>
+                {/* Video Upload */}
+                <UploadCard
+                  title="Videos"
+                  icon={<FileOutlined />}
+                  accept="video/*"
+                  maxSize={50}
+                  fileList={videoFiles}
+                  onChange={setVideoFiles}
+                  listType="text"
+                >
+                  <Dragger
+                    accept="video/*"
+                    fileList={videoFiles}
+                    beforeUpload={(file) => {
+                      const isVideo = file.type.startsWith("video/");
+                      if (!isVideo) {
+                        message.error("Please upload a video file");
+                        return Upload.LIST_IGNORE;
+                      }
+                      const isLt50M = file.size / 1024 / 1024 < 50;
+                      if (!isLt50M) {
+                        message.error("Video must be smaller than 50MB");
+                        return Upload.LIST_IGNORE;
+                      }
+                      return false;
+                    }}
+                    onChange={({ fileList }) => setVideoFiles(fileList)}
+                    showUploadList={false}
+                  >
+                    <p className="mb-1">
+                      <CloudUploadOutlined className="text-3xl text-gray-400" />
+                    </p>
+                    <p className="text-sm text-gray-600">Click or drag videos to upload</p>
+                    <p className="text-xs text-gray-400">MP4, MOV, AVI • Max 50MB each</p>
+                  </Dragger>
+                </UploadCard>
               </div>
             </div>
           )}
@@ -340,7 +689,7 @@ export default function CreatePostPage() {
           {/* AI Generation Section */}
           {(mediaMode === "ai" || mediaMode === "both") && (
             <>
-              <Divider orientation="left">
+              <Divider orientation="left" className="text-base font-medium">
                 <Space>
                   <RobotOutlined />
                   AI Generation Options
@@ -390,14 +739,67 @@ export default function CreatePostPage() {
                 </Form.Item>
               )}
 
+              {/* AI Video Frames Upload */}
               {useAiVideo && (
-                <Alert
-                  message="Video Generation Notice"
-                  description="AI video generation may take 5-10 minutes to complete."
-                  type="warning"
-                  showIcon
-                  className="mb-4"
-                />
+                <>
+                  <Divider orientation="left" className="text-base font-medium">
+                    <Space>
+                      <VideoCameraOutlined />
+                      AI Video Frames
+                    </Space>
+                  </Divider>
+
+                  <Alert
+                    message="Upload Frames for AI Video Generation"
+                    description="Add video or image frames that will be used by n8n to generate the AI video. Each frame can have a custom caption and voice setting."
+                    type="info"
+                    showIcon
+                  />
+
+                  <Space className="my-4">
+                    <Button
+                      icon={<VideoCameraOutlined />}
+                      onClick={() => addFrame("video")}
+                      className="bg-purple-500 hover:bg-purple-600 text-white"
+                    >
+                      Add Video Frame
+                    </Button>
+                    <Button
+                      icon={<PictureOutlined />}
+                      onClick={() => addFrame("image")}
+                      className="bg-blue-500 hover:bg-blue-600 text-white"
+                    >
+                      Add Image Frame
+                    </Button>
+                  </Space>
+
+                  {frames.length > 0 && (
+                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <Space>
+                          <DragOutlined />
+                          <Text strong>Frames ({frames.length})</Text>
+                        </Space>
+                        <Text type="secondary" className="text-xs">
+                          Frames processed in order
+                        </Text>
+                      </div>
+                      {frames.map((frame, index) => (
+                        <FrameUploadCard key={frame.id} frame={frame} index={index} />
+                      ))}
+                    </div>
+                  )}
+
+                  {useAiVideo && !hasFrames && (
+                    <Alert
+                      message="No Frames Added"
+                      description="AI video generation works best with uploaded frames. You can still proceed, but the video will be generated based on project details only."
+                      type="warning"
+                      showIcon
+                      className="mt-4"
+                    />
+                  )}
+                </>
               )}
             </>
           )}
@@ -409,7 +811,9 @@ export default function CreatePostPage() {
             <Space wrap>
               <Button
                 icon={<SaveOutlined />}
-                onClick={() => form.validateFields().then((values) => handleSubmit(values, false))}
+                onClick={() =>
+                  form.validateFields().then((values) => handleSubmit(values, false)).catch(() => {})
+                }
                 loading={createMutation.isPending}
               >
                 Save as Draft
@@ -419,8 +823,11 @@ export default function CreatePostPage() {
                 <Button
                   type="primary"
                   icon={<SendOutlined />}
-                  onClick={() => form.validateFields().then((values) => handleSubmit(values, true))}
+                  onClick={() =>
+                    form.validateFields().then((values) => handleSubmit(values, true)).catch(() => {})
+                  }
                   loading={createMutation.isPending}
+                  className="bg-gradient-to-r from-blue-500 to-purple-500"
                 >
                   Save & Generate AI
                 </Button>
@@ -430,7 +837,9 @@ export default function CreatePostPage() {
                 <Button
                   type="primary"
                   icon={<SaveOutlined />}
-                  onClick={() => form.validateFields().then((values) => handleSubmit(values, false))}
+                  onClick={() =>
+                    form.validateFields().then((values) => handleSubmit(values, false)).catch(() => {})
+                  }
                   loading={createMutation.isPending}
                 >
                   Save with Media
@@ -458,4 +867,8 @@ export default function CreatePostPage() {
       )}
     </div>
   );
+}
+
+export default function CreatePostPage() {
+  return <CreatePostContent />;
 }

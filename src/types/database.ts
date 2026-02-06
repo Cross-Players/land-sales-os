@@ -73,6 +73,7 @@ export interface PlatformSync {
   postId: string;
   platform: Platform;
   externalId: string | null;
+  externalUrl: string | null;  // Published post URL from Facebook
   syncStatus: SyncStatus;
   likes: number;
   comments: number;

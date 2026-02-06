@@ -17,6 +17,32 @@ export interface UploadResult {
   mimeType: string;
 }
 
+// Sanitize filename for Supabase Storage
+// - Remove leading/trailing spaces
+// - Replace spaces with underscores
+// - Remove special characters except .-_
+// - Convert to lowercase
+function sanitizeFileName(fileName: string): string {
+  // Get file extension
+  const lastDot = fileName.lastIndexOf(".");
+  const ext = lastDot > 0 ? fileName.slice(lastDot).toLowerCase() : "";
+  const name = lastDot > 0 ? fileName.slice(0, lastDot) : fileName;
+
+  // Sanitize the name part
+  const sanitized = name
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Remove diacritics
+    .replace(/[đĐ]/g, "d") // Handle Vietnamese đ
+    .replace(/\s+/g, "_") // Replace spaces with underscores
+    .replace(/[^a-z0-9_.-]/g, "") // Remove special characters
+    .replace(/_+/g, "_") // Remove multiple underscores
+    .replace(/^_|_$/g, ""); // Remove leading/trailing underscores
+
+  return `${sanitized || "file"}${ext}`;
+}
+
 // Storage Service - Handles file uploads to Supabase Storage
 export const storageService = {
   // Upload a file to manual uploads bucket
@@ -26,7 +52,8 @@ export const storageService = {
     options?: { folder?: string }
   ): Promise<UploadResult> {
     const folder = options?.folder || postId;
-    const fileName = `${Date.now()}-${file.name}`;
+    const safeFileName = sanitizeFileName(file.name);
+    const fileName = `${Date.now()}-${safeFileName}`;
     const path = `${folder}/${fileName}`;
 
     const { error } = await supabase.storage.from(BUCKET_MANUAL).upload(path, file, {
@@ -59,7 +86,8 @@ export const storageService = {
     fileName: string,
     mimeType: string
   ): Promise<UploadResult> {
-    const path = `${postId}/${Date.now()}-${fileName}`;
+    const safeFileName = sanitizeFileName(fileName);
+    const path = `${postId}/${Date.now()}-${safeFileName}`;
 
     const { error } = await supabase.storage.from(BUCKET_AI).upload(path, buffer, {
       contentType: mimeType,

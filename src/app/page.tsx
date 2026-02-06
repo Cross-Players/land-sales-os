@@ -13,8 +13,9 @@ export default function HomePage() {
   }, [router]);
 
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <Spin size="large" tip="Loading..." />
+    <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+      <Spin size="large" />
+      <p className="text-gray-500">Loading...</p>
     </div>
   );
 }

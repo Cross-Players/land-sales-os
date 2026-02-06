@@ -28,22 +28,7 @@ AI-powered real estate marketing automation platform. Create posts, generate con
 
 ## Getting Started
 
-### Option 1: Docker (Recommended)
-
-```bash
-# Start PostgreSQL and app
-docker-compose up -d
-
-# Run database migrations
-docker-compose exec app npx prisma db push
-
-# View logs
-docker-compose logs -f app
-```
-
-Open [http://localhost:3000](http://localhost:3000)
-
-### Option 2: Local Development
+### Local Development
 
 #### 1. Install Dependencies
 
@@ -52,40 +37,27 @@ cd land-sales-os
 npm install
 ```
 
-#### 2. Start PostgreSQL
+#### 2. Environment Variables
+
+Copy the example env file and fill in your values (see [.env.example](.env.example)). Use your Supabase project for database and storage.
 
 ```bash
-# Using Docker (just the database)
-docker run -d --name land-sales-postgres \
-  -e POSTGRES_USER=postgres \
-  -e POSTGRES_PASSWORD=postgres \
-  -e POSTGRES_DB=land_sales \
-  -p 5432:5432 \
-  postgres:15-alpine
+cp .env.example .env.local
 ```
 
-#### 3. Environment Variables
+Required: `DATABASE_URL` (Supabase Session pooler), Supabase keys, and optionally `N8N_WEBHOOK_URL` / `N8N_API_KEY` for n8n integration.
 
-```bash
-cp env.local.example .env.local
-```
-
-The default DATABASE_URL for local PostgreSQL:
-```bash
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/land_sales
-```
-
-#### 4. Database Setup
+#### 3. Database Setup
 
 ```bash
 # Generate Prisma client
 npm run db:generate
 
-# Push schema to database
+# Push schema to database (uses DATABASE_URL from .env.local)
 npm run db:push
 ```
 
-#### 5. Run Development Server
+#### 4. Run Development Server
 
 ```bash
 npm run dev
@@ -127,21 +99,6 @@ Open [http://localhost:3000](http://localhost:3000)
 - `npm run db:migrate` - Run database migrations
 - `npm run db:studio` - Open Prisma Studio
 
-## Docker
-
-### Development
-
-```bash
-docker-compose up
-```
-
-### Production Build
-
-```bash
-docker build -t land-sales-dashboard .
-docker run -p 3000:3000 --env-file .env.local land-sales-dashboard
-```
-
 ## API Endpoints
 
 | Method | Endpoint | Description |
@@ -155,6 +112,11 @@ docker run -p 3000:3000 --env-file .env.local land-sales-dashboard
 | POST | /api/posts/:id/regenerate | Regenerate AI content |
 | POST | /api/webhooks/n8n | n8n callback webhook |
 | GET | /api/health | Health check |
+
+## Deployment (Vercel + GitHub Actions)
+
+- **Deploy lên Vercel:** Xem [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) để cấu hình Vercel, biến môi trường và kết nối GitHub.
+- **CI/CD:** Workflow tại `.github/workflows/ci.yml` chạy lint và build trên mỗi push/PR vào `main`. Vercel tự deploy khi push lên GitHub.
 
 ## License
 

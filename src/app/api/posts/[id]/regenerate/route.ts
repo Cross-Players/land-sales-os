@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { postService } from "@/lib/db/post.service";
 import { assetService } from "@/lib/db/asset.service";
+import { n8nService } from "@/lib/services/n8n.service";
 import { apiResponse, apiError, apiNotFound } from "@/lib/utils/api-response";
 
 interface RouteParams {
@@ -34,9 +35,12 @@ export async function POST(_request: NextRequest, { params }: RouteParams) {
     // Update post status to PENDING_AI
     const updatedPost = await postService.updateStatus(id, "PENDING_AI");
 
-    // TODO: Trigger n8n webhook for regeneration
-    // await triggerN8nWorkflow(updatedPost);
-    console.log("AI regeneration triggered for post:", id);
+    // Trigger n8n webhook for regeneration
+    n8nService.triggerAiGeneration(updatedPost).catch((error) => {
+      console.error("Failed to trigger n8n workflow:", error);
+      // Optionally update post status to FAILED
+      postService.updateStatus(id, "FAILED").catch(console.error);
+    });
 
     return apiResponse({
       post: updatedPost,

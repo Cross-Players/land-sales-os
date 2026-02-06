@@ -82,7 +82,7 @@ export interface UploadAssetRequest {
 
 // ============ WEBHOOK API ============
 
-// n8n Webhook Payload
+// n8n Webhook Payload (AI content generation callback)
 export interface N8nWebhookPayload {
   postId: string;
   generatedContent: {
@@ -104,7 +104,24 @@ export interface N8nWebhookPayload {
   }>;
 }
 
-// n8n Trigger Payload (sent to n8n)
+// Frame types for AI video generation (sent to n8n)
+export interface VideoFrame {
+  copy: "Video-Frame";
+  "V-Caption": string;
+  "V-Voice": string;
+  "V-Src": string;
+}
+
+export interface ImageFrame {
+  copy: "Image-Frame";
+  "I-Caption": string;
+  "I-Voice": string;
+  "I-Src": string;
+}
+
+export type FrameItem = VideoFrame | ImageFrame;
+
+// n8n Trigger Payload (sent to n8n for Facebook auto post)
 export interface N8nTriggerPayload {
   postId: string;
   projectDetails: ProjectDetails;
@@ -112,31 +129,17 @@ export interface N8nTriggerPayload {
   useAiVideo: boolean;
   useAiText: boolean;
   aiPromptOverride?: string;
+  frames?: FrameItem[];
   manualAssets?: Array<{
     url: string;
     type: "IMG" | "VID";
-  }>;
+  }>; // @deprecated Use frames instead
 }
 
-// ============ FACEBOOK API ============
-
-// Facebook Post Payload
-export interface FacebookPostPayload {
-  message: string;
-  mediaUrls?: string[];
-  link?: string;
-}
-
-// Facebook Post Response
-export interface FacebookPostResponse {
-  id: string;
+// n8n Facebook Published Callback Payload
+export interface N8nFacebookPublishedPayload {
   postId: string;
-}
-
-// Engagement Data
-export interface EngagementData {
-  likes: number;
-  comments: number;
-  shares: number;
-  views: number;
+  post_id: string; // Facebook post ID
+  post_url: string; // Link to the published post
+  status: "success" | "failed";
 }

@@ -34,15 +34,22 @@ export const updatePostSchema = z.object({
 export const listPostsQuerySchema = z.object({
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(20),
-  sortBy: z.enum(["createdAt", "updatedAt", "title", "status"]).default("createdAt"),
-  order: z.enum(["asc", "desc"]).default("desc"),
+  sortBy: z
+    .enum(["createdAt", "updatedAt", "title", "status"])
+    .nullish()
+    .transform((val) => val ?? "createdAt"),
+  order: z
+    .enum(["asc", "desc"])
+    .nullish()
+    .transform((val) => val ?? "desc"),
   status: z
     .union([
       z.enum(["DRAFT", "PENDING_AI", "READY", "PUBLISHED", "FAILED"]),
       z.array(z.enum(["DRAFT", "PENDING_AI", "READY", "PUBLISHED", "FAILED"])),
     ])
-    .optional(),
-  search: z.string().optional(),
+    .nullish()
+    .transform((val) => val ?? undefined),
+  search: z.string().nullish().transform((val) => val ?? undefined),
 });
 
 // Type exports

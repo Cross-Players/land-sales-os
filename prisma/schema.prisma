@@ -139,6 +139,7 @@ model PlatformSync {
   postId       String
   platform     Platform
   externalId   String?    // Facebook post ID
+  externalUrl  String?    // Published post URL (from Facebook)
   syncStatus   SyncStatus @default(PENDING)
 
   // Engagement Data (from Facebook)

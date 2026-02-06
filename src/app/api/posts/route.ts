@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { postService } from "@/lib/db/post.service";
 import { createPostSchema, listPostsQuerySchema } from "@/lib/validations/post";
 import { apiResponse, apiError, parseBody } from "@/lib/utils/api-response";
+import { n8nService } from "@/lib/services/n8n.service";
 import type { PostStatus } from "@prisma/client";
 
 // GET /api/posts - List all posts with pagination and filtering
@@ -52,11 +53,29 @@ export async function POST(request: NextRequest) {
 
     const post = await postService.create(data!);
 
+    // Debug: Log post creation and AI flags
+    console.log("Post created:", {
+      id: post.id,
+      useAiImage: post.useAiImage,
+      useAiVideo: post.useAiVideo,
+      useAiText: post.useAiText,
+      shouldTriggerN8n: post.useAiImage || post.useAiVideo || post.useAiText,
+    });
+
     // If AI generation is needed, trigger n8n webhook
     if (post.useAiImage || post.useAiVideo || post.useAiText) {
-      // TODO: Trigger n8n webhook
-      // await triggerN8nWorkflow(post);
-      console.log("AI generation requested, should trigger n8n for post:", post.id);
+      console.log("Triggering n8n workflow for post:", post.id);
+      // Update post status to PENDING_AI
+      await postService.updateStatus(post.id, "PENDING_AI");
+
+      // Trigger n8n workflow asynchronously
+      n8nService.triggerAiGeneration(post).catch((error) => {
+        console.error("Failed to trigger n8n workflow:", error);
+        // Optionally update post status to FAILED
+        postService.updateStatus(post.id, "FAILED").catch(console.error);
+      });
+    } else {
+      console.log("Skipping n8n trigger - no AI flags enabled");
     }
 
     return apiResponse(post, 201);

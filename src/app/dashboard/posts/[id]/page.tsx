@@ -11,7 +11,7 @@ import {
   Alert,
   Divider,
   Image,
-  message,
+  App,
   Tag,
   Empty,
 } from "antd";
@@ -24,11 +24,7 @@ import {
 } from "@ant-design/icons";
 import { usePost, useDeletePost, usePublishPost, useRegeneratePost } from "@/hooks/usePosts";
 import { PostStatusBadge } from "@/components/ui/PostStatusBadge";
-import {
-  showDeleteConfirm,
-  showPublishConfirm,
-  showRegenerateConfirm,
-} from "@/components/ui/ConfirmModal";
+import { useConfirmModal } from "@/components/ui/ConfirmModal";
 import type { ProjectDetails } from "@/types";
 
 interface PageProps {
@@ -38,6 +34,8 @@ interface PageProps {
 export default function PostDetailPage({ params }: PageProps) {
   const { id } = use(params);
   const router = useRouter();
+  const { message } = App.useApp();
+  const { showDeleteConfirm, showPublishConfirm, showRegenerateConfirm } = useConfirmModal();
 
   const { data: post, isLoading, error, refetch } = usePost(id);
   const deleteMutation = useDeletePost();

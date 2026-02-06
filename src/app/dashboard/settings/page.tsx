@@ -45,42 +45,28 @@ export default function SettingsPage() {
             />
           </Form.Item>
 
-          {/* Facebook */}
-          <Divider orientation="left">Facebook/Meta Configuration</Divider>
-          <Text type="secondary" className="block mb-4">
-            Get your app credentials from{" "}
-            <Link href="https://developers.facebook.com/apps" target="_blank">
-              Facebook Developers <LinkOutlined />
-            </Link>
-          </Text>
-
-          <Form.Item label="Facebook App ID">
-            <Input
-              placeholder="Your Facebook App ID"
-              disabled
-              value={process.env.FB_APP_ID || "Not configured"}
-            />
-          </Form.Item>
-
-          <Form.Item label="Facebook App Secret">
-            <Input.Password
-              placeholder="Your Facebook App Secret"
-              disabled
-              value={process.env.FB_APP_SECRET ? "••••••••" : "Not configured"}
-            />
-          </Form.Item>
-
           {/* n8n */}
           <Divider orientation="left">n8n Configuration</Divider>
           <Text type="secondary" className="block mb-4">
-            Configure your n8n webhook URL for AI automation workflows.
+            Facebook publishing is handled by n8n. Configure your n8n webhook URL and API key below.
           </Text>
 
           <Form.Item label="n8n Webhook URL">
             <Input
               placeholder="https://your-n8n.com/webhook/xxx"
               disabled
-              value={process.env.N8N_WEBHOOK_URL || "Not configured"}
+              value={process.env.NEXT_PUBLIC_APP_URL || "Not configured"}
+            />
+            <Text type="secondary" className="text-xs">
+              Default: https://primary-production-64e7.up.railway.app/webhook-test/facebook-auto-post
+            </Text>
+          </Form.Item>
+
+          <Form.Item label="n8n API Key">
+            <Input.Password
+              placeholder="Your n8n API Key"
+              disabled
+              value={process.env.N8N_API_KEY ? "••••••••" : "Not configured"}
             />
           </Form.Item>
 
@@ -117,16 +103,17 @@ export default function SettingsPage() {
               <div>
                 <p>To configure these settings, create a <code>.env.local</code> file in the project root with the following variables:</p>
                 <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-auto">
-{`NEXT_PUBLIC_SUPABASE_URL=
+{`DATABASE_URL=postgresql://...
+NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
-DATABASE_URL=
-FB_APP_ID=
-FB_APP_SECRET=
-N8N_WEBHOOK_URL=
+SUPABASE_STORAGE_BUCKET_MANUAL=manual-uploads
+SUPABASE_STORAGE_BUCKET_AI=ai-generated-content
+N8N_WEBHOOK_URL=https://primary-production-64e7.up.railway.app/webhook-test/facebook-auto-post
 N8N_API_KEY=
 GEMINI_API_KEY=
-VEO3_API_KEY=`}
+VEO3_API_KEY=
+NEXT_PUBLIC_APP_URL=http://localhost:3000`}
                 </pre>
               </div>
             }

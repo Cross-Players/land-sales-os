@@ -72,8 +72,8 @@ const columns: ColumnsType<PostSummary> = [
   },
 ];
 
-// Mock data for initial display
-const mockPosts: PostSummary[] = [
+// Mock data for initial display (unused, kept for reference)
+const _mockPosts: PostSummary[] = [
   {
     id: "1",
     title: "Luxury Villa in District 2",
@@ -102,21 +102,22 @@ const mockPosts: PostSummary[] = [
 
 export default function DashboardPage() {
   // Fetch posts data
-  const { data: posts, isLoading } = useQuery<PostSummary[]>({
+  const { data: postsData, isLoading } = useQuery<{ items: PostSummary[]; total: number }>({
     queryKey: ["posts", "recent"],
     queryFn: async () => {
-      // TODO: Replace with actual API call
-      // const response = await fetch('/api/posts?limit=5');
-      // return response.json();
-      return mockPosts;
+      const response = await fetch('/api/posts?limit=100');
+      const data = await response.json();
+      return data;
     },
   });
 
+  const posts = postsData?.items || [];
+
   // Calculate stats
-  const totalPosts = posts?.length || 0;
-  const publishedPosts = posts?.filter((p) => p.status === "PUBLISHED").length || 0;
-  const pendingPosts = posts?.filter((p) => p.status === "PENDING_AI").length || 0;
-  const draftPosts = posts?.filter((p) => p.status === "DRAFT").length || 0;
+  const totalPosts = postsData?.total || 0;
+  const publishedPosts = posts.filter((p) => p.status === "PUBLISHED").length;
+  const pendingPosts = posts.filter((p) => p.status === "PENDING_AI").length;
+  const draftPosts = posts.filter((p) => p.status === "DRAFT").length;
 
   return (
     <div>
